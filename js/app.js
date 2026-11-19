@@ -519,6 +519,16 @@ buildThemeChips();
 buildPad();
 applyTheme(startTheme, true);
 resize();
+
+// On narrow portrait screens, merge the timer HUD into the top bar so nothing overlays the cube.
+{
+  const hud = document.querySelector('.hud');
+  const topbar = document.querySelector('.topbar');
+  const mq = window.matchMedia('(max-width: 860px) and (orientation: portrait)');
+  const place = () => (mq.matches ? topbar : stage).appendChild(hud);
+  place();
+  mq.addEventListener('change', place);
+}
 resetSession(startSize);
 resetTimer();
 

@@ -192,3 +192,70 @@ kbd { background: rgba(127, 127, 127, 0.22); border-radius: 5px; padding: 0 5px;
 @media (prefers-reduced-motion: reduce) {
   .bg-layer, .glass, body { transition: none; }
 }
+
+/* ==========================================================================
+   Narrow portrait (phones, narrow embeds)
+   - the cube stage is a FIXED height, so growing logs never resize it
+   - the timer HUD is merged into the top bar (moved there by js/app.js),
+     so nothing overlaps the cube
+   - menus, buttons, fonts and icons are compact
+   ========================================================================== */
+@media (max-width: 860px) and (orientation: portrait) {
+  .app {
+    --stage-h: clamp(240px, 46dvh, 400px);
+    grid-template-rows: auto var(--stage-h) minmax(0, 1fr);
+    gap: 6px;
+    padding: 6px;
+    padding-bottom: calc(6px + var(--safe-b));
+  }
+  .stage { height: var(--stage-h); }
+
+  /* top bar: logo + size switch + scrolling themes on one row, timer row beneath */
+  .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border-radius: 14px; }
+  .brand span { display: none; }
+  .logo { width: 22px; height: 22px; }
+  .seg { margin-left: 0; padding: 2px; border-radius: 9px; }
+  .seg button { padding: 3px 9px; font-size: 12px; min-height: 26px; border-radius: 7px; }
+  .themes { order: 0; flex: 1 1 0; margin-left: 0; gap: 4px; padding: 1px; }
+  .chip-theme { font-size: 11px; padding: 3px 8px; min-height: 26px; }
+
+  /* timer HUD lives in the top bar */
+  .hud {
+    position: static; transform: none;
+    flex: 1 0 100%; min-width: 0;
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 2px 0; border: 0; border-top: 1px solid var(--border); border-radius: 0;
+    background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+    text-align: left;
+  }
+  .timer { font-size: 22px; letter-spacing: 0.5px; white-space: nowrap; }
+  .status { flex: 1 1 0; min-width: 0; font-size: 11px; min-height: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hud-row { gap: 8px; font-size: 11px; white-space: nowrap; }
+
+  /* bottom panel: scrolls inside itself, never grows the page or the stage */
+  .panel { max-height: none; overflow-y: auto; padding: 6px 8px; gap: 5px; border-radius: 14px; }
+  .controls { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .btn { flex-direction: column; gap: 1px; padding: 3px 2px; font-size: 11px; min-height: 36px; border-radius: 10px; }
+  .btn .ico { font-size: 14px; }
+
+  .settings { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+  .speed { flex: 1 1 0; min-width: 0; font-size: 11px; gap: 6px; }
+  .speed input { min-height: 18px; }
+  .pad { flex: 0 0 auto; }
+  .pad[open] { flex: 1 0 100%; }
+  .pad summary { font-size: 11px; padding: 2px 0; }
+  .padgrid { gap: 4px; padding-top: 4px; }
+  .padgrid button { min-height: 28px; font-size: 12px; border-radius: 8px; }
+
+  .log-head { gap: 6px; }
+  .log-head h2 { font-size: 12px; }
+  .count { font-size: 11px; }
+  .mini { font-size: 11px; padding: 1px 8px; min-height: 22px; border-radius: 6px; }
+  .log { flex: 1 1 0; height: auto; min-height: 64px; padding: 5px; border-radius: 8px; font-size: 12px; }
+  .log:empty::before { font-size: 11px; }
+  .grp { margin-bottom: 4px; }
+  .grp .tag { font-size: 9px; padding: 0 6px; margin-bottom: 2px; }
+  .chip { font-size: 11px; padding: 0 5px; border-radius: 5px; }
+  .mvs { gap: 3px; }
+  .note { font-size: 11px; margin: 3px 0 2px; padding-top: 3px; }
+}
