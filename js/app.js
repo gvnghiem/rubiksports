@@ -2,6 +2,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { Cube, moveFromFace, moveFromSlice, notation } from './cube.js';
 import { THEMES } from './themes.js';
+import { sfx } from './sound.js';
 
 const $ = (s) => document.querySelector(s);
 const store = {
@@ -49,6 +50,7 @@ const state = {
   cube: null,
   locked: false,        // true while a scramble or solve is animating
   userMoves: 0,
+  dirty: false,         // cube has been scrambled/moved away from solved
   assisted: false,
   speed: 3,
   orbit: { theta: 0.78, phi: 1.12, zoom: 1 },
@@ -244,6 +246,54 @@ function logAsText() {
   return lines.join('\n');
 }
 
+/* ---------------- celebration: confetti + fanfare ---------------- */
+const confettiCanvas = $('#confetti');
+let confettiRaf = 0;
+function confetti() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = confettiCanvas.clientWidth, h = confettiCanvas.clientHeight;
+  confettiCanvas.width = w * dpr;
+  confettiCanvas.height = h * dpr;
+  const g = confettiCanvas.getContext('2d');
+  g.scale(dpr, dpr);
+  const colors = ['#c8102e', '#ff6b00', '#ffd500', '#00a651', '#0051ba', '#ffffff'];
+  // Two bursts shooting up and inward from the lower corners.
+  const parts = Array.from({ length: 140 }, (_, i) => {
+    const left = i % 2 === 0;
+    return {
+      x: left ? w * 0.1 : w * 0.9, y: h * 0.85,
+      vx: (left ? 1 : -1) * (2 + Math.random() * 8), vy: -(10 + Math.random() * 11),
+      r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.4,
+      s: 5 + Math.random() * 6, c: colors[Math.floor(Math.random() * colors.length)],
+    };
+  });
+  const t0 = performance.now();
+  cancelAnimationFrame(confettiRaf);
+  const frame = (now) => {
+    const t = (now - t0) / 1000;
+    g.clearRect(0, 0, w, h);
+    for (const p of parts) {
+      p.vy += 0.38; p.vx *= 0.992; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      g.save();
+      g.globalAlpha = Math.max(0, Math.min(1, 3.2 - t));
+      g.translate(p.x, p.y);
+      g.rotate(p.r);
+      g.fillStyle = p.c;
+      g.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+      g.restore();
+    }
+    if (t < 3.2) confettiRaf = requestAnimationFrame(frame);
+    else g.clearRect(0, 0, w, h);
+  };
+  confettiRaf = requestAnimationFrame(frame);
+}
+function celebrate() {
+  state.dirty = false;
+  sfx.fanfare();
+  confetti();
+}
+
 /* ---------------- cube lifecycle ---------------- */
 const btnRandom = $('#btnRandom');
 const btnSolve = $('#btnSolve');
@@ -258,13 +308,16 @@ function makeCube(size) {
   state.size = size;
   const cube = new Cube(scene, size);
   state.cube = cube;
-  cube.onMoveStart = (m, src) => {
+  cube.onMoveStart = (m, src, ms) => {
     if (cube !== state.cube) return;
     if (src === 'user') state.userMoves++;
     addLogMove(notation(m, size), src);
+    sfx.turnStart(ms);
   };
   cube.onMoveEnd = (m, src) => {
     if (cube !== state.cube) return;
+    sfx.turnEnd(src === 'user' ? 1 : 0.75);
+    if (!cube.isSolved()) state.dirty = true;
     if (src === 'user' && timer.running && cube.queue.length === 0 && cube.isSolved()) finishByHand();
   };
   cube.onIdle = () => {
@@ -285,6 +338,7 @@ function resetSession(size = state.size) {
   clearLog();
   state.userMoves = 0;
   state.assisted = false;
+  state.dirty = false;
   updateCounts();
 }
 
@@ -292,6 +346,7 @@ function finishByHand() {
   const cube = state.cube;
   cube.history.length = 0;
   stopTimer(true);
+  celebrate();
   const t = timer.elapsed;
   let msg = `Solved in ${fmt(t)}! 🎉`;
   if (!state.assisted) {
@@ -318,10 +373,11 @@ function onIdle() {
     if (timer.running) { stopTimer(false); }
     setStatus('Solved by the solver ✨');
     addNote('Solved by the solver', true);
+    celebrate();
   } else if (src === 'user') {
     if (cube.isSolved()) {
       cube.history.length = 0;
-      if (!timer.running && state.userMoves > 0 && timer.elapsed === 0) setStatus('Solved! 🎉');
+      if (state.dirty) { celebrate(); if (!timer.running) setStatus('Solved! 🎉'); }
     }
   }
 }
@@ -334,6 +390,7 @@ function randomize() {
   addNote(`Scramble — ${moves.length} moves`);
   setLocked(true);
   setStatus('Scrambling…');
+  sfx.whoosh();
   lastSrc = 'scramble';
   cube.enqueue(moves, { ms: Math.max(55, moveMs() * 0.45), source: 'scramble' });
 }
@@ -353,6 +410,7 @@ function solve() {
   addNote(`Solve — ${sol.length} move${sol.length === 1 ? '' : 's'} (reverses everything since the cube was last solved)`);
   setLocked(true);
   setStatus('Solving…');
+  sfx.whoosh();
   lastSrc = 'solve';
   cube.enqueue(sol, { ms: Math.max(100, moveMs() * 0.8), source: 'solve' });
 }
@@ -506,6 +564,13 @@ $('#btnCopy').addEventListener('click', async (e) => {
   catch { btn.textContent = 'Press ⌘/Ctrl+C'; window.prompt('Copy the move log:', text); }
   setTimeout(() => (btn.textContent = 'Copy'), 1400);
 });
+const btnSound = $('#btnSound');
+function renderSound() {
+  btnSound.setAttribute('aria-pressed', String(sfx.enabled));
+  btnSound.textContent = sfx.enabled ? '🔊 Sound on' : '🔇 Sound off';
+}
+btnSound.addEventListener('click', () => { sfx.setEnabled(!sfx.enabled); store.set('sound', sfx.enabled ? '1' : '0'); renderSound(); if (sfx.enabled) sfx.turnEnd(); });
+['pointerdown', 'keydown', 'touchend'].forEach((ev) => window.addEventListener(ev, () => sfx.unlock(), { passive: true }));
 $('#speed').addEventListener('input', (e) => { state.speed = +e.target.value; store.set('speed', e.target.value); });
 
 /* ---------------- boot ---------------- */
@@ -515,6 +580,8 @@ const startTheme = THEMES.find((t) => t.id === (params.get('theme') || store.get
 state.speed = Math.min(5, Math.max(1, +store.get('speed', 3) || 3));
 $('#speed').value = String(state.speed);
 
+sfx.setEnabled(store.get('sound', '1') !== '0');
+renderSound();
 buildThemeChips();
 buildPad();
 applyTheme(startTheme, true);

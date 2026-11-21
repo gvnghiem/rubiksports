@@ -167,7 +167,7 @@ export class Cube {
     this.busy = true;
     while (this.queue.length && !this.dead) {
       const job = this.queue.shift();
-      this.onMoveStart && this.onMoveStart(job.move, job.source);
+      this.onMoveStart && this.onMoveStart(job.move, job.source, job.ms);
       await this._anim(job.move, job.ms * (Math.abs(job.move.turns) === 2 ? 1.45 : 1));
       if (this.dead) return;
       if (job.source === 'solve') this.history.length = 0;
